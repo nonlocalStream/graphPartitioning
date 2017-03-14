@@ -366,7 +366,7 @@ PartitionObj::usage =
 		eigenvalues = Reverse[First[eigensystem]];
 		eigenvectors = Reverse[Last[eigensystem]];
 		(* Using Alpert et al.'s recommendation of xi = 2nd eigenval + nth eigenval *)
-		xi = eig envalues[[2]] + eigenvalues[[n]];
+		xi = eigenvalues[[2]] + eigenvalues[[n]];
 		Table[Table[N[Sqrt[xi - eigenvalues[[i]]]] * eigenvectors[[i]][[j]],{i,n}],{j,n}]
 	]]
 

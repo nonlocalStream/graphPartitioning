@@ -458,7 +458,7 @@ PartitionObj::usage =
 				cut,
 				First[cut]]]
 
-	Options[CriterionCut]={IncludeCut->False,Range->{1/3,2/3}}
+	Options[CriterionCut]={IncludeCut->False,Range->{1/5,4/5}}
 	CriterionCut[g_Graph,vector_List,OptionsPattern[]] :=
 		With[{range=Take[Sort[vector],{Round[Length[vector] * First[OptionValue[Range]]],Round[Length[vector] * Last[OptionValue[Range]]]}]},
 		GeneralizedCriterionCut[CriterionPartitionFunction,g,vector,range,IncludeCut->OptionValue[IncludeCut]]]

@@ -149,7 +149,7 @@ PartitionObj::usage =
 
 (*Begin["Combinatorica`"]
 *)
-<< Combinatorica`
+(*<< Combinatorica`*)
 (* ---------------------------------------------------------------
 		GRAPH OPERATIONS
 		Partitioning algorithms, cut selection, and the functions
@@ -162,7 +162,7 @@ PartitionObj::usage =
 
 	(* SPECTRAL PARTITIONER *)
 
-	SpectralCut[g_Graph] := ChangeEdges[g,Complement[Edges[g],SpectralEdges[g]]]
+	SpectralCut[g_Graph] := EdgeDelete[g,SpectralEdges[g]](*ChangeEdges[g,Complement[Edges[g],SpectralEdges[g]]]*)
 
 	Options[SpectralEdges]={IncludeObj->False}
 	SpectralEdges[g_Graph, OptionsPattern[]] := With[{v=FiedlerVector[g]},
@@ -426,20 +426,21 @@ PartitionObj::usage =
 		Note: The weird map is because the ToAdjacencyMatrix procedure with
 		edge weights has non-existing edges entered as Infinity. This replaces
 		the Infinity entries with zero. *)
-	DegreeMatrix[g_Graph] := DiagonalMatrix[Apply[Plus, 
-					Map[If[#==Infinity,0,#]&,ToAdjacencyMatrix[g,EdgeWeight], {2}]]]
+	DegreeMatrix[g_Graph] := System`DiagonalMatrix[Apply[Plus, 
+					Map[If[#==Infinity,0,#]&,WeightedAdjacencyMatrix[g], {2}]]]
 	
 	LaplacianMatrix[g_Graph] := (DegreeMatrix[g] - 
-				Map[If[#==Infinity,0,#]&,ToAdjacencyMatrix[g,EdgeWeight], {2}])
+				Map[If[#==Infinity,0,#]&,WeightedAdjacencyMatrix[g], {2}])
 
 	RowColumnDrop[m_, l_] := Map[Delete[#,l]&,Delete[m,l]]
 
 	Options[VectorCut]={IncludeCut->False}
-	VectorCut[g_Graph,v_List,cutoff_] := Select[Edges[g],
+	VectorCut[g_Graph,v_List,cutoff_] := Select[EdgeList[g],
 		(v[[First[#]]] >= cutoff && v[[Last[#]]] < cutoff) ||
 		(v[[First[#]]] < cutoff && v[[Last[#]]] >= cutoff) &]
 
-	VertexWeights[g_Graph] := GetVertexWeights[g]
+	VertexWeights[g_Graph] := Map[PropertyValue[{g,#},System`VertexWeight]&,VertexList[g]]
+(*	EdgeWeights[g_Graph] := Map[PropertyValue[{g,#},System`EdgeWeight]&,EdgeList[g]]*)
 
 (*Map[If[Length[#]==0,1,Last[First[#]]]&,
 		Table[GraphOptions[g,i],{i,V[g]}]]*)
@@ -447,7 +448,8 @@ PartitionObj::usage =
 	(* :LookupWeight:
 		Has to take into account the fact that looking up an edge in a graph
 		whose edge weights have not been set returns an empty list. *)
-	LookupWeight[g_Graph, e_List] := First[GetEdgeWeights[g, {e}]]
+	LookupWeight[g_Graph, e_] := PropertyValue[{g,e},System`EdgeWeight]
+(*	First[GetEdgeWeights[g, {e}]]*)
 
 (*With[{edge=GraphOptions[g,e]},
 		If[Length[edge]==0,1,Last[First[edge]]]]*)
@@ -476,7 +478,7 @@ PartitionObj::usage =
 		With[{range=Take[Sort[vector],{Round[Length[vector] * First[OptionValue[Range]]],Round[Length[vector] * Last[OptionValue[Range]]]}]},
 		GeneralizedCriterionCut[CriterionPartitionFunction,g,vector,range,IncludeCut->OptionValue[IncludeCut]]]
 
-	CriterionPartitionFunction[g_Graph,v_List,c_] := With[{partitionWeights=PartitionWeights[VertexWeights[g],v,c]},
+	CriterionPartitionFunction[g_Graph,v_List,c_] := With[{partitionWeights=PartitionWeights[GraphPartition`VertexWeights[g],v,c]},
 		If[First[partitionWeights]==0 || Last[partitionWeights]==0, Infinity,
 		(Total[Map[LookupWeight[g,#]&,VectorCut[g,v,c]]]) * ((1/(First[partitionWeights])) + (1/(Last[partitionWeights])))]]
 
@@ -569,14 +571,12 @@ PartitionObj::usage =
 			HighlightedEdgeColors->{Red},
 			HighlightedEdgeStyle->Dashed]]*)
 			
-	ShowCuttedEdges[g_Graph, e_List] := ShowGraph[Highlight[g,{e},
+	ShowCuttedEdges[g_Graph, e_List] := HighlightGraph[g,e](*ShowGraph[Highlight[g,{e},
 			HighlightedEdgeColors->{Red},
 			HighlightedEdgeStyle->Dashed],
-			VertexLabel->True]
+			VertexLabel->True]*)
 	
-	ShowVectorCut[g_Graph,v_List,c_] := ShowGraph[Highlight[g,{VectorCut[g,v,c]},
-			HighlightedEdgeColors->{Red},
-			HighlightedEdgeStyle->Dashed]]
+	ShowVectorCut[g_Graph,v_List,c_] := ShowCuttedEdges[g, VectorCut[g,v,c]]
 
 	EigenShowGraph[g_Graph] := With[{eigensystem=Last/@Sort[Select[Thread[Apply[List,Eigensystem[N[LaplacianMatrix[g]]]]],
 										Abs[First[#]-0]>10^-10&], First[#1]<First[#2]&]},

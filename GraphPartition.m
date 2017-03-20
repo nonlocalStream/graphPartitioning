@@ -187,7 +187,7 @@ PartitionObj::usage =
 
 	(* ISOPERIMETRIC PARTITIONER *)
 
-	IsoperimetricCut[g_Graph] := ChangeEdges[g,Complement[Edges[g],IsoperimetricEdges[g]]]
+	IsoperimetricCut[g_Graph] := EdgeDelete[g,IsoperimetricEdges[g]]
 
 	(* :IsoperimetricEdges
 		Note: Grounds a random vertex in each connected component, unless the
@@ -326,7 +326,7 @@ PartitionObj::usage =
 	]
 		
 
-	PermuteMatrix[m_List,p_List] := Permute[Map[Permute[#,p]&,m],p]
+	PermuteMatrix[m_Array,p_List] := Permute[Map[Permute[#,p]&,m],p]
 
 	(* :ConstructPermutation:
 		Permutes the given matrix in such a way that, going down the
@@ -439,6 +439,7 @@ PartitionObj::usage =
 		(v[[First[#]]] >= cutoff && v[[Last[#]]] < cutoff) ||
 		(v[[First[#]]] < cutoff && v[[Last[#]]] >= cutoff) &]
 
+	V[g_Graph] := Length[VertexList[g]]
 	VertexWeights[g_Graph] := Map[PropertyValue[{g,#},System`VertexWeight]&,VertexList[g]]
 (*	EdgeWeights[g_Graph] := Map[PropertyValue[{g,#},System`EdgeWeight]&,EdgeList[g]]*)
 

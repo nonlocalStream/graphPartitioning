@@ -297,6 +297,8 @@ PartitionObj::usage =
 	FixedIsoperimetricVector[g_Graph,balance_Integer,ones_List,zeros_List] :=
 	Module[{permutation,laplacianM,mass,chi,unfixed,
 			Lnn,Mnn,Lqq,Mqq,M11,Lqn,Lq1,L1n,lhs,rhs,xhat,xn},
+		(*Print[balance]; Print[ones];Print[zeros];*)
+		
 		permutation = ConstructPermutation[V[g],balance,ones,zeros];
 		laplacianM = PermuteMatrix[LaplacianMatrix[g],permutation];
 		mass = Permute[VertexWeights[g],permutation];
@@ -326,7 +328,7 @@ PartitionObj::usage =
 	]
 		
 
-	PermuteMatrix[m_Array,p_List] := Permute[Map[Permute[#,p]&,m],p]
+	PermuteMatrix[m_,p_List] := Permute[Map[Permute[#,p]&,m],p]
 
 	(* :ConstructPermutation:
 		Permutes the given matrix in such a way that, going down the
@@ -386,7 +388,7 @@ PartitionObj::usage =
 		n = 0;
 		count = 0;
 		partition = {};
-(*		bestn = 0;
+(*		bestObj = Infinity;
 		bestPartition = 0;*)
 		While[count < eta,
 			count++;
@@ -550,6 +552,18 @@ PartitionObj::usage =
 	PrintIsoperimetricData[g_Graph, v_] := Module[{},
 		Print["Criterion function value for run ", N[Last[CriterionCut[g,v,IncludeCut->True]]]];
 		Print[ListPlot[Sort[v]]];]
+		
+	EvaluatePartitionAlg[alg_,g_] := Switch[alg,
+		SpectralAlg,
+		Flatten[Timing[SpectralEdges[g, IncludeObj->True]],1],
+		IsoperimetricAlg,
+		Flatten[Timing[IsoperimetricEdges[g, IncludeObj->True]],1],
+		MultipleFiedlerAlg,
+		Flatten[Timing[MultipleFiedlerEdges[g, IncludeObj->True]],1]
+		(*EvaluateMultipleFiedlerEdges[ga]*)]
+
+	
+
 	(* ---- *)
 
 	(* ----
@@ -686,3 +700,6 @@ EndPackage[ ]
 (*<< Combinatorica`*)
 (*$Context
 ShowGraph[RoachGraph[4]]*)
+
+
+

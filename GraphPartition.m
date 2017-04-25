@@ -370,11 +370,11 @@ PartitionObj::usage =
 			VectorPartition[basisVectors, V[g], OptimizationOn->True,
 				OptimizationObj-> (CriterionPartitionFunction[g,#,0.5]&)]]
 
-	Options[MultipleIsoperimetricVector]={NumBasis->5}
+	Options[MultipleIsoperimetricVector]={NumBasis->5, Grounds->{}}
 	MultipleIsoperimetricVector[g_Graph, OptionsPattern[]] := 
 	(*With[{xi=Eigenvalues[N[LaplacianMatrix[g]]][[1]]},*)
 		MultipleFiedlerVector[g, NumBasis->OptionValue[NumBasis],
-			Basis->FingerprintVectors]
+			Basis->(FingerprintVectors[#1,#2,Grounds->OptionValue[Grounds]]&)]
 	(*Maximum[
 		Table[VectorPartition[SpectralVectors[g], mu],
 		{mu, Floor[V[g]*OptionValue[Range][[1]]], Floor[V[g]*OptionValue[Range][[2]]]}],
@@ -407,18 +407,21 @@ PartitionObj::usage =
 		M is the mass matrix of the vertices (For now all vertices have the same weight 1)
 		J^(1/2) is the upper triangular square root of J computed by Cholesky decomposition. *)
 	(*Next: Random without replacement*)
-	Options[FingerprintVectors]={(*Epsilon->10^-6, *)Xi->{}}
+	Options[FingerprintVectors]={Xi->{}, Grounds->{}}
 	FingerprintVectors[g_Graph, k_Integer, OptionsPattern[]] := With[
-		{B = IsoperimetricBasis[g, k], M = IdentityMatrix[V[g]],
+		{B = IsoperimetricBasis[g, k, Grounds->OptionValue[Grounds]], M = IdentityMatrix[V[g]],
 		L=N[LaplacianMatrix[g]], (*epsilonI = OptionValue[Epsilon]*IdentityMatrix[k]},*)
 		xi = If[OptionValue[Xi]=={},Eigenvalues[N[LaplacianMatrix[g]]][[1]], OptionValue[Xi]]}, 
 			With[{J = Transpose[B].(xi*M-L).B},
 				Transpose[CholeskyDecomposition[RoundToSym[J]].Transpose[B].M]]]
 	RoundToSym[M_] := (M+Transpose[M])/2
 				(*Transpose so that each row of the output is a fingerprint vector*)
-	IsoperimetricBasis[g_Graph, k_] := With[{groundVertices = RandomSample[Range[V[g]],k]},
+	Options[IsoperimetricBasis]={Grounds->{}}
+	IsoperimetricBasis[g_Graph, k_, OptionsPattern[]] := 
+	With[{groundVertices = 
+			If[OptionValue[Grounds]=={},RandomSample[Range[V[g]],k],OptionValue[Grounds]]},
 		With[{vectors = IsoperimetricVector[g, Substitutions->{#}]&/@groundVertices},
-		Transpose[Orthogonalize[vectors, Method->"GramSchmidt"]]]]
+			Transpose[Orthogonalize[vectors, Method->"GramSchmidt"]]]]
 	(* :VectorPartition:
 		Performs a basic vector partitioning on the given list of vectors.  It attempts to find
 		eta vectors from the list whose sum is maximized.  It does this by placing the largest
@@ -611,8 +614,10 @@ PartitionObj::usage =
 		IsoperimetricAlg,
 		Flatten[Timing[IsoperimetricEdges[g, IncludeObj->True,RunTwice->True]],1],
 		MultipleFiedlerAlg,
-		Flatten[Timing[MultipleFiedlerEdges[g, IncludeObj->True]],1]
-		(*EvaluateMultipleFiedlerEdges[ga]*)]
+		Flatten[Timing[MultipleFiedlerEdges[g, IncludeObj->True]],1],
+		MultipleIsoperimetricAlg,
+		Flatten[Timing[MultipleIsoperimetricEdges[g, IncludeObj->True]],1]
+		]
 
 	
 

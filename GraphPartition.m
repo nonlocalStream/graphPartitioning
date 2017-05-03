@@ -194,9 +194,12 @@ PartitionObj::usage =
 		RunTwice option is true, in which case it runs the partitioner twice,
 		the second time grounding the vertices from the first run with the highest
 		values. *)
-	Options[IsoperimetricEdges]={RunTwice->False, IncludeObj->False}
+	Options[IsoperimetricEdges]={RunTwice->False, IncludeObj->False, Substitutions->{}}
 	IsoperimetricEdges[g_Graph,OptionsPattern[]] := With[{v=IsoperimetricVector[g,
-			Substitutions->Sort[Map[ #[[Random[Integer,{1,Length[#]}]]]&, ConnectedComponents[g]]],IsoperimetricMode->If[OptionValue[RunTwice],Twice,Fixed]]},
+				Substitutions->If[OptionValue[Substitutions]=={}, 
+					Sort[Map[ #[[Random[Integer,{1,Length[#]}]]]&ConnectedComponents[g]]],
+					OptionValue[Substitutions]],
+				IsoperimetricMode->If[OptionValue[RunTwice],Twice,Fixed]]},
 			With[{cutoff=CriterionCut[g,v]},
 				If[OptionValue[IncludeObj],
 					{CriterionPartitionFunction[g,v,cutoff], VectorCut[g,v,cutoff]},
@@ -346,9 +349,9 @@ PartitionObj::usage =
 			{CriterionPartitionFunction[g,v,cutoff], VectorCut[g, v, cutoff]},
 			VectorCut[g, v, 0.5]]]
 	
-	Options[MultipleIsoperimetricEdges]={IncludeObj->False}
+	Options[MultipleIsoperimetricEdges]={IncludeObj->False, Grounds->{}}
 	MultipleIsoperimetricEdges[g_Graph, OptionsPattern[]] := With[
-		{v=MultipleIsoperimetricVector[g], cutoff=0.5},
+		{v=MultipleIsoperimetricVector[g, Grounds->OptionValue[Grounds]], cutoff=0.5},
 		If[OptionValue[IncludeObj],
 			{CriterionPartitionFunction[g,v,cutoff], VectorCut[g, v, cutoff]},
 			VectorCut[g, v, 0.5]]]
@@ -461,6 +464,13 @@ PartitionObj::usage =
 			Table[ If[MemberQ[partition,i], 1, 0], {i, Length[vectors]} ] ]]
 	
 	
+
+
+
+
+
+
+
 	(* VARIOUS UTILITY FUNCTIONS *)
 
 	(* :Maximum:
@@ -560,6 +570,8 @@ PartitionObj::usage =
 	(* ---- *)
 (* --------------------------------------------------------------- *)
 
+
+
 (* ---------------------------------------------------------------
 		ANALYSIS AND VISUALIZATION
 		Functions to help analyze the partitions produced by the above
@@ -612,16 +624,44 @@ PartitionObj::usage =
 		SpectralAlg,
 		Flatten[Timing[SpectralEdges[g, IncludeObj->True]],1],
 		IsoperimetricAlg,
-		Flatten[Timing[IsoperimetricEdges[g, IncludeObj->True,RunTwice->True]],1],
+		Flatten[Timing[IsoperimetricEdges[g, IncludeObj->True,RunTwice->False]],1],
 		MultipleFiedlerAlg,
 		Flatten[Timing[MultipleFiedlerEdges[g, IncludeObj->True]],1],
 		MultipleIsoperimetricAlg,
 		Flatten[Timing[MultipleIsoperimetricEdges[g, IncludeObj->True]],1]
 		]
-
+	Options[CompareIsoperimetricAlgs]={ShowAll->False}
+	CompareIsoperimetricAlgs[g_,k_, OptionsPattern[]] := With[{grounds =RandomSample[Range[V[g]],k]},
+		Module[
+		{singleEval = (Flatten[
+			Timing[IsoperimetricEdges[g,RunTwice->False,Substitutions->{#},IncludeObj->True]],
+			1]&),
+		 multipleEval = (Flatten[
+		     Timing[MultipleIsoperimetricEdges[g, Grounds->#, IncludeObj->True]],
+		     1]&),
+		 m1, m2, m3, toGrid, grid1, grid2},
+		 m1 = singleEval/@grounds;
+		 m2 = multipleEval[grounds];
+		 (*m3 = multipleEval[grounds[[Select[Range[Length[grounds]], grid1[[#]][[2]]>0.3&]]]]*)
+		 toGrid = ({ShowCuttedEdges[g,#[[3]]],N[#[[2]]]}&);
+		 grid1 = toGrid/@m1;
+		 grid2 = toGrid@m2;
+		 (*Print["grounds:",grounds];*)
+		 With[{all=Table[Join[Prepend[grid1[[i]],grounds[[i]]], 
+			     If[i==1,grid2,{SpanFromAbove, SpanFromAbove}]],
+			     {i,1, Length[grid1]}],
+			     best={Join[First[Sort[grid1,#1[[2]]<#2[[2]]&]],grid2]}},
+			   If[OptionValue[ShowAll],all, best]]]]
+		 
 	
 
 	(* ---- *)
+
+
+
+
+
+
 
 	(* ----
 		Graph display
@@ -666,9 +706,18 @@ PartitionObj::usage =
 			with meshes of the different partitions displayed in different
 			colors. *)
 
-	FacesToGraph[fList_List,vertices_List] := AddEdges[EmptyGraph[Length[fList]],
-		MeshToEdgeList[fList,vertices,1&]]
+	FacesToGraph[fList_List,vertices_List] := With[{elist =MeshToEdgeList[fList,vertices,1&]},
+		Graph[Range[Length[fList]],Map[UndirectedEdge[#[[1]][[1]],#[[1]][[2]]]&, elist], 
+			(*VertexLabels\[Rule]Automatic,*)VertexWeight->Table[1/Length[fList], Length[fList]],
+			EdgeWeight->Automatic](*Map[#[[2]][[2]]&, elist]*)](*AddEdges[EmptyGraph[Length[fList]],
+		MeshToEdgeList[fList,vertices,1&]]*)
+	FacesToFrame[fList_List, vertices_List] := With[{elist=MeshToFrameEdgeList[fList, vertices]},
+	Graph[Range[Length[vertices]],elist, 
+			VertexWeight->Table[1/Length[vertices], Length[vertices]],
+			EdgeWeight->Automatic]]
 
+     MeshToFrameEdgeList[fList_List,vertices_List] := 
+     Flatten[Table[Map[UndirectedEdge[f[[#]],f[[Mod[# , Length[f]]+1]]]&,Range[Length[f]]],{f, fList}]]
 	(* :FacesToWeightedGraph:
 		Weights the edges of the graph based on the length of the edge
 		the faces on the mesh share.  Longer edges have a larger weight. *)
@@ -692,7 +741,7 @@ PartitionObj::usage =
 								{}]&,labeledFList]]];]];
 		edgeList]
 
-	(* :PartitionOb
+	(* :PartitionObj
 		NOTE: OBJ parsing code written by Mark McClur, found at:
 		http://facstaff.unca.edu/mcmcclur/java/LiveMathematica/real.html *)
 	PartitionObj[s_String] := Module[
@@ -746,13 +795,11 @@ PartitionObj::usage =
 			Print[s<>" not found."]
 		]
 	]
+	
 (* --------------------------------------------------------------- *)
 (*End[ ]
 *)
 EndPackage[ ]
-
-
-
 
 
 

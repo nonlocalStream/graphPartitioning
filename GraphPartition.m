@@ -147,9 +147,7 @@ PartitionObj::usage =
 
 
 
-(*Begin["Combinatorica`"]
-*)
-(*<< Combinatorica`*)
+
 (* ---------------------------------------------------------------
 		GRAPH OPERATIONS
 		Partitioning algorithms, cut selection, and the functions
@@ -184,6 +182,13 @@ PartitionObj::usage =
 					Thread[Apply[List,Eigensystem[N[LaplacianMatrix[g]]]]],
 				(*Abs[First[#]-0]>10^-10&],*)
 			First[#1]<First[#2]&][[2]]]
+
+
+
+
+	
+
+
 
 	(* ISOPERIMETRIC PARTITIONER *)
 
@@ -341,7 +346,9 @@ PartitionObj::usage =
 		With[{end=Join[ones, zeros, {balance}]},
 			Join[ Complement[Range[size], end], end] ]
 
-	(* MULTIPLE VECTORS *)
+
+
+	(* MULTIPLE FIEDLER VECTORS *)
 	Options[MultipleFiedlerEdges]={IncludeObj->False}
 	MultipleFiedlerEdges[g_Graph, OptionsPattern[]] := With[
 		{v=MultipleFiedlerVector[g], cutoff=0.5},
@@ -349,18 +356,6 @@ PartitionObj::usage =
 			{CriterionPartitionFunction[g,v,cutoff], VectorCut[g, v, cutoff]},
 			VectorCut[g, v, 0.5]]]
 	
-	Options[MultipleIsoperimetricEdges]={IncludeObj->False,
-	                                     GroundingScheme-> GroundingRandom,ShowGrounds->False}
-	MultipleIsoperimetricEdges[g_Graph, OptionsPattern[]] := Module[
-		{grounds, v, cutoff=0.5, result},
-		 {grounds, v}=MultipleIsoperimetricVector[g, GroundingScheme->OptionValue[GroundingScheme],
-		                                              ShowGrounds->True];
-		 Print[v];
-		 result = {If[OptionValue[IncludeObj],CriterionPartitionFunction[g,v,cutoff],Nothing],
-		           VectorCut[g, v, cutoff],
-		           If[OptionValue[ShowGrounds], grounds, Nothing]};
-		 If[Length[result]==1, result[[1]], result]]
-
 	MultipleFiedlerCut[g_Graph] := EdgeDelete[g, MultipleFiedlerEdges[g]]
 	MultipleIsoperimetricCut[g_Graph] := EdgeDelete[g, MultipleIsoperimetricEdges[g]]
 
@@ -378,6 +373,32 @@ PartitionObj::usage =
 		    SpectralVectors[g,OptionValue[NumBasis]], OptionValue[Basis]]},
 		VectorPartition[basisVectors, V[g], OptimizationOn->True,
 			OptimizationObj-> (CriterionPartitionFunction[g,#,0.5]&)]]
+
+
+	SpectralVectors[g_Graph, k_] := With[{eigensystem = Eigensystem[N[LaplacianMatrix[g]],-k]},
+	Module[{n,eigenvalues,eigenvectors,xi},
+		n = V[g];
+		eigenvalues = Reverse[First[eigensystem]];
+		Print[eigenvalues];
+		eigenvectors = Table[Normalize[v],{v,Reverse[Last[eigensystem]]}];
+		(* Using Alpert et al.'s recommendation of xi = 2nd eigenval + nth eigenval *)
+		xi = eigenvalues[[2]] + eigenvalues[[-1]];
+		Table[Table[N[Sqrt[xi - eigenvalues[[i]]]] * eigenvectors[[i]][[j]],{i,k}],{j,n}]
+	]]
+
+
+	(* MULTIPLE ISOPERIMETRIC VECTORS *)
+	Options[MultipleIsoperimetricEdges]={IncludeObj->False,
+	                                     GroundingScheme-> GroundingRandom,ShowGrounds->False}
+	MultipleIsoperimetricEdges[g_Graph, OptionsPattern[]] := Module[
+		{grounds, v, cutoff=0.5, result},
+		 {grounds, v}=MultipleIsoperimetricVector[g, GroundingScheme->OptionValue[GroundingScheme],
+		                                              ShowGrounds->True];
+		 Print[v];
+		 result = {If[OptionValue[IncludeObj],CriterionPartitionFunction[g,v,cutoff],Nothing],
+		           VectorCut[g, v, cutoff],
+		           If[OptionValue[ShowGrounds], grounds, Nothing]};
+		 If[Length[result]==1, result[[1]], result]]
 
 	Options[MultipleIsoperimetricVector]={NumBasis->5, GroundingScheme-> GroundingRandom, ShowGrounds->False}
 	MultipleIsoperimetricVector[g_Graph, OptionsPattern[]] := 
@@ -398,17 +419,10 @@ PartitionObj::usage =
 			s'_j = [ sqrt[xi-lam1]*v_j1, sqrt[xi-lam2]*v_j2, ..., sqrt[xi-lamN]*v_jN ]
 		Where lamN is the nth eigenvalue of the graph's Laplacian and v_ji is the jth element
 		of the ith eigenvector. *)
-	SpectralVectors[g_Graph, k_] := With[{eigensystem = Eigensystem[N[LaplacianMatrix[g]],-k]},
-	Module[{n,eigenvalues,eigenvectors,xi},
-		n = V[g];
-		eigenvalues = Reverse[First[eigensystem]];
-		Print[eigenvalues];
-		eigenvectors = Table[Normalize[v],{v,Reverse[Last[eigensystem]]}];
-		(* Using Alpert et al.'s recommendation of xi = 2nd eigenval + nth eigenval *)
-		xi = eigenvalues[[2]] + eigenvalues[[-1]];
-		Table[Table[N[Sqrt[xi - eigenvalues[[i]]]] * eigenvectors[[i]][[j]],{i,k}],{j,n}]
-	]]
-	
+
+
+
+
 	(* :FingerprintVectors:
 		Using the k randomly grounded isoperimetric vectors,
 		Gives the n-element fingerprint vectors of the graph, where the jth fingerprint vector:
@@ -434,7 +448,7 @@ PartitionObj::usage =
 	IsoperimetricBasis[g_Graph, k_, (*OptionsPattern[]*)scheme_] := 
 	Module[{groundVertices={}, vectors={}, next},
         For[i=1,i<=k, i+=1,
-            next=GroundingRandom[g,groundVertices, If[Length[vectors]>0,vectors[[-1]], {}]];
+            next=GroundingRandom[g,groundVertices, If[Length[vectors]>0,vectors[[All,-1]], {}]];
             groundVertices=Append[groundVertices,next[[1]]];
             vectors=Append[vectors,next[[2]]];];
 	    {groundVertices,Transpose[Orthogonalize[vectors, Method->"GramSchmidt"]]}]
@@ -452,7 +466,12 @@ PartitionObj::usage =
 		    {ground, IsoperimetricVector[g, Substitutions->{ground}]}]
 	GroundingPreviousMax[g_Graph, prevGrounds_List,prevV_List] := 
 		With[{ground=If[prevV=={},RandomInteger[V[g]], Maximum[prevV,Identity][[2]]]},
+		    Print[prevV];
+		    Print[ground];
 		    {ground, IsoperimetricVector[g, Substitutions->{ground}]}]
+
+
+
 			
 	Options[VectorMaxOnDirection]={OptimizationOn->False, OptimizationObj->Identity}
 	VectorMaxOnDirection[vectors_List, eta_Integer, dir_List, OptionsPattern[]] := Module[
@@ -528,11 +547,6 @@ PartitionObj::usage =
 		]
 	
 	
-
-
-
-
-
 
 
 	(* VARIOUS UTILITY FUNCTIONS *)

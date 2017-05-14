@@ -425,14 +425,44 @@ PartitionObj::usage =
 			If[OptionValue[Grounds]=={},RandomSample[Range[V[g]],k],OptionValue[Grounds]]},
 		With[{vectors = IsoperimetricVector[g, Substitutions->{#}]&/@groundVertices},
 			Transpose[Orthogonalize[vectors, Method->"GramSchmidt"]]]]
+			
+			
+	Options[VectorMaxOnDirection]={OptimizationOn->False, OptimizationObj->Identity}
+	VectorMaxOnDirection[vectors_List, eta_Integer, dir_List, OptionsPattern[]] := Module[
+		{partition, sortedVertices, objectives, bestEta, bestObj=Infinity},
+	    labelledVectors = MapIndexed[ {#1, #2[[1]]}&, vectors];
+		(*Sort the basis vectors descendingly according to the projected lengths of the
+		vectors on the given direction*)
+		labelledVectors = SortBy[labelledVectors, -Dot[#[[1]],Normalize[dir]]&];
+		sortedVertices = Map[#[[2]]&,labelledVectors];
+		Print[sortedVertices];
+		bestEta = Min[eta, Length[vectors]];
+		If[OptionValue[OptimizationOn],
+			(*Try putting at most eta vertices in partition 1,
+			choose the one with smallest sparsity*)
+		    partition = Table[0,V[g]];
+(*		    For[i=1, i\[LessEqual]Length[sortedVertices],i++,
+		        partition[[sortedVertices[[i]]]]=1;
+				obj=OptionValue[OptimizationObj][partition];
+				If[obj<bestObj, bestObj=obj; bestEta=i, Nothing]];*)
+			objectives=Table[partition[[sortedVertices[[i]]]]=1;
+				OptionValue[OptimizationObj][partition],{i,1,bestEta}];
+			(*Print[N[objectives]]*);
+			(*use negative objectives to find the minimum *)
+		    {bestObj, bestEta} = Maximum[-objectives,Identity];
+		    (*Print[bestEta];*)];
+		Table[If[MemberQ[Take[sortedVertices, bestEta],i], 1, 0], {i,Length[vectors]}]]
+
+		
 	(* :VectorPartition:
 		Performs a basic vector partitioning on the given list of vectors.  It attempts to find
 		eta vectors from the list whose sum is maximized.  It does this by placing the largest
 		vector in one partition, then adds vectors one by one which maximize the sum so far, until
 		it has eta vectors. Returns an indicator vector of the same length as the input list, where
 		a 1 indicates the vector is part of the new partition, and a 0 if it is not. *)
-	Options[VectorPartition]={OptimizationOn->False, OptimizationObj->Identity}
-	VectorPartition[vectors_List,eta_Integer,OptionsPattern[]] := Module[{n,partition,labelledVectors,max,count},
+	Options[VectorPartition]={OptimizationOn->False, OptimizationObj->Identity, Method->Mallow}
+	VectorPartition[vectors_List,eta_Integer,OptionsPattern[]] := Module[
+	    {n,partition,labelledVectors,max,count, mallowResult},
 		labelledVectors = MapIndexed[ {#1, #2[[1]]}&, vectors];
 		n = 0;
 		count = 0;
@@ -459,9 +489,16 @@ PartitionObj::usage =
 			labelledVectors = Drop[labelledVectors, {max[[2]]}];
 		];
 (*		Table[ If[MemberQ[bestPartition,i], 1, 0], {i, Length[vectors]} ] ]*)
-		If[OptionValue[OptimizationOn],
-			bestPartitionV,
-			Table[ If[MemberQ[partition,i], 1, 0], {i, Length[vectors]} ] ]]
+		mallowResult=If[OptionValue[OptimizationOn],
+					bestPartitionV,
+					Table[ If[MemberQ[partition,i], 1, 0], {i, Length[vectors]} ] ];
+		Switch[OptionValue[Method],
+			Mallow, mallowResult,
+			MallowProbe, 
+				With[{dir=Normalize[Total[Table[basisVectors[[i]]*iv[[i]],{i,1,Length[iv]}]]]},
+					VectorMaxOnDirection[vectors,eta,dir,OptimizationOn->OptionValue[OptimizationOn],
+					OptimizationObj->OptionValue[OptimizationObj]]]]		
+		]
 	
 	
 
@@ -594,7 +631,7 @@ PartitionObj::usage =
 
 	(* ----
 		Cut analysis
-			Functions that plot the vectors preduced by the partitioners,
+			Functions that plot the vectors produced by the partitioners,
 			or help compare cuts. *)
 
 	PlotFiedlerVector[g_Graph] := With[{v=FiedlerVector[g]},

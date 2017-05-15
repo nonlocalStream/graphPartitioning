@@ -388,13 +388,13 @@ PartitionObj::usage =
 
 
 	(* MULTIPLE ISOPERIMETRIC VECTORS *)
-	Options[MultipleIsoperimetricEdges]={IncludeObj->False,
+	Options[MultipleIsoperimetricEdges]={IncludeObj->False, NumBasis->5,
 	                                     GroundingScheme-> GroundingRandom,ShowGrounds->False}
 	MultipleIsoperimetricEdges[g_Graph, OptionsPattern[]] := Module[
 		{grounds, v, cutoff=0.5, result},
 		 {grounds, v}=MultipleIsoperimetricVector[g, GroundingScheme->OptionValue[GroundingScheme],
-		                                              ShowGrounds->True];
-		 Print[v];
+		                                              ShowGrounds->True,
+		                                              NumBasis->OptionValue[NumBasis]];
 		 result = {If[OptionValue[IncludeObj],CriterionPartitionFunction[g,v,cutoff],Nothing],
 		           VectorCut[g, v, cutoff],
 		           If[OptionValue[ShowGrounds], grounds, Nothing]};
@@ -448,9 +448,11 @@ PartitionObj::usage =
 	IsoperimetricBasis[g_Graph, k_, (*OptionsPattern[]*)scheme_] := 
 	Module[{groundVertices={}, vectors={}, next},
         For[i=1,i<=k, i+=1,
-            next=GroundingRandom[g,groundVertices, If[Length[vectors]>0,vectors[[All,-1]], {}]];
+            next=scheme[g,groundVertices, If[Length[vectors]>0,vectors[[-1]], {}]];
             groundVertices=Append[groundVertices,next[[1]]];
+            (*Print[groundVertices];*)
             vectors=Append[vectors,next[[2]]];];
+        (* Print["vectors", vectors];*)
 	    {groundVertices,Transpose[Orthogonalize[vectors, Method->"GramSchmidt"]]}]
 (*	Module[{groundVertices, vectors, v, prevMax},
 	vectors=Switch[OptionValue[GroundingScheme],
@@ -465,10 +467,20 @@ PartitionObj::usage =
 		With[{ground=RandomChoice[Complement[Range[V[g]],prevGrounds]]},
 		    {ground, IsoperimetricVector[g, Substitutions->{ground}]}]
 	GroundingPreviousMax[g_Graph, prevGrounds_List,prevV_List] := 
-		With[{ground=If[prevV=={},RandomInteger[V[g]], Maximum[prevV,Identity][[2]]]},
-		    Print[prevV];
-		    Print[ground];
+		Module[{candidates, labeledV, ground},
+			ground=If[prevV=={},
+		                   RandomInteger[{1,V[g]}], 
+		                   (*label the vector with indexes and only keep 
+		                   the indexes that didn't appear in previous grounds*)
+		                   labeledV = MapIndexed[{#1,#2[[1]]}&,prevV];
+		                   labeledV = Select[labeledV, !MemberQ[prevGrounds, #[[2]]]&];
+		                   (*[[1,2]] because Maximum here gives {{value, oldindex}, newindex}
+		                   we want the old index before Select. *)
+		                   Maximum[labeledV,#[[1]]&][[1,2]]];
+		    (*Print[prevV];
+		    Print[ground];*)
 		    {ground, IsoperimetricVector[g, Substitutions->{ground}]}]
+		    
 
 
 

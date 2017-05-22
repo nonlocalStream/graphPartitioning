@@ -766,13 +766,13 @@ PartitionObj::usage =
 	(*TODO: need to rename to sth related to multiple to avoid confusion*)
 	Options[CompareIsoperimetricAlgs]={ShowAll->False}
 	CompareIsoperimetricAlgs[g_,k_,scheme_, OptionsPattern[]] := Module[
-	   {{timing, multipleResult} = Timing[MultipleIsoperimetricEdges[
-	                                g,GroundingScheme->scheme,IncludeObj->True,ShowGrounds->True]],
-	     grounds, singleMetrics, multipleMetrics, toGrid, grid1, grid2},
-	     grounds = multipleMetrics[[-1]];
-	     multipleMetrics = Prepend[multipleMetrics[[;;-2]], timing];
-	     singleMetrics = Map[grounds, (Flatten[Timing[
-	        IsoperimetricEdges[g,RunTwice->False,Substitutions->{#},IncludeObj->True]],1])&];
+	   {timing, multipleResult, grounds, singleMetrics, multipleMetrics, toGrid, grid1, grid2},
+	     {timing, multipleResult} = Timing[MultipleIsoperimetricEdges[g,GroundingScheme->scheme,
+	      NumBasis->k, IncludeObj->True,ShowGrounds->True]];
+	     grounds = multipleResult[[-1]];
+	     multipleMetrics = Prepend[multipleResult[[;;-2]], timing];
+	     singleMetrics = Map[(Flatten[Timing[
+	        IsoperimetricEdges[g,RunTwice->False,Substitutions->{#},IncludeObj->True]],1])&,grounds];
 		 (*m1, m2, m3, toGrid, grid1, grid2},
 		 m1 = singleEval/@grounds;
 		 m2 = multipleEval[grounds];*)

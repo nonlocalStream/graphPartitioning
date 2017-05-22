@@ -440,18 +440,21 @@ PartitionObj::usage =
 		 L=N[LaplacianMatrix[g]]; (*epsilonI = OptionValue[Epsilon]*IdentityMatrix[k]},*)
 		 xi = If[OptionValue[Xi]=={},Eigenvalues[N[LaplacianMatrix[g]]][[1]], OptionValue[Xi]];
 		 J = Transpose[B].(xi*M-L).B;
-		 {grounds,Transpose[CholeskyDecomposition[RoundToSym[J]].Transpose[B].M]}]
+		 {grounds,Transpose[CholeskyDecomposition[RoundToSym[Re[J]]].Transpose[B].M]}]
 
 	RoundToSym[M_] := (M+Transpose[M])/2
 				(*Transpose so that each row of the output is a fingerprint vector*)
 	(*Options[IsoperimetricBasis]={Scheme\[Rule]GroundingRandom}*)
-	IsoperimetricBasis[g_Graph, k_, (*OptionsPattern[]*)scheme_] := 
+	IsoperimetricBasis[g_Graph, k_Integer, (*OptionsPattern[]*)scheme_] := 
 	Module[{groundVertices={}, vectors={}, next},
-        For[i=1,i<=k, i+=1,
+		If[SameQ[scheme,GroundingRandom]|| SameQ[scheme,GroundingPreviousMax]
+		||SameQ[scheme,GroundingPreviousMedian],
+		    For[i=1,i<=k, i+=1,
             next=scheme[g,groundVertices, If[Length[vectors]>0,vectors[[-1]], {}]];
             groundVertices=Append[groundVertices,next[[1]]];
             (*Print[groundVertices];*)
-            vectors=Append[vectors,next[[2]]];];
+            vectors=Append[vectors,next[[2]]]];,
+		{groundVertices, vectors}=scheme[g,k]];
         (* Print["vectors", vectors];*)
 	    {groundVertices,Transpose[Orthogonalize[vectors, Method->"GramSchmidt"]]}]
 (*	Module[{groundVertices, vectors, v, prevMax},
@@ -463,9 +466,31 @@ PartitionObj::usage =
 			               prevMax=Maximum[v,Identity][[2]]; v],k]];
 	Print[vectors];*)
 	
+	Options[GroundingSubset]={Ratio->3}
+	GroundingSubset[g_Graph,k_Integer,OptionsPattern[]] := 
+		Module[{candidates,groundAndVectors},
+			(*Generate Ratio*k candidate isoperimetric vectors*)
+			candidates = RandomSample[Range[V[g]],Min[V[g],k*OptionValue[Ratio]]];
+			groundAndVectors = Map[{#, IsoperimetricVector[g, Substitutions->{#}]}&, candidates];
+			(*Sort by the objective (sparsity) ascendingly*)
+			groundAndVectors = SortBy[groundAndVectors, CriterionPartitionFunction[g,#[[1]],cutoff]&];
+			(*Choose the best k vectors from Ratio*k candidates*)
+			groundAndVectors = Take[groundAndVectors, k];
+			(*Return the best k grounds and the corresponding vectors*)
+			{Map[#[[1]]&,groundAndVectors], Map[#[[2]]&,groundAndVectors]}]
+		
+	GroundingMaxDegree[g_Graph,k_Integer] := 
+		Module[{degrees,grounds,vectors},
+			degrees= MapIndexed[{#1, #2[[1]]}&,DegreeList[g]];
+			degrees=Take[SortBy[degrees, -#[[1]]&],k];
+			grounds=Map[#[[2]]&,degrees];
+			vectors=Map[IsoperimetricVector[g, Substitutions->{#}]&, grounds];
+			{grounds, vectors}]
+			
 	GroundingRandom[g_Graph, prevGrounds_List,prevV_List] := 
 		With[{ground=RandomChoice[Complement[Range[V[g]],prevGrounds]]},
 		    {ground, IsoperimetricVector[g, Substitutions->{ground}]}]
+
 	GroundingPreviousMax[g_Graph, prevGrounds_List,prevV_List] := 
 		Module[{candidates, labeledV, ground},
 			ground=If[prevV=={},
@@ -480,7 +505,23 @@ PartitionObj::usage =
 		    (*Print[prevV];
 		    Print[ground];*)
 		    {ground, IsoperimetricVector[g, Substitutions->{ground}]}]
-		    
+	GroundingPreviousMedian[g_Graph, prevGrounds_List,prevV_List] := 
+		Module[{candidates, labeledV, ground},
+			ground=If[prevV=={},
+		                   RandomInteger[{1,V[g]}], 
+		                   (*Only keep the indexes that didn't appear in previous grounds*)
+		                   labeledV = MapIndexed[{#1,#2[[1]]}&,prevV];
+		                   labeledV = Select[labeledV, !MemberQ[prevGrounds, #[[2]]]&];
+		                   labeledV = SortBy[labeledV, #[[1]]&];
+		                   labeledV[[ Quotient[Length[prevV],2] ]][[2]]
+		                   ];
+		                   (*medValue = Median[
+		                       Table[prevV[[i]], {i, Complement[Range[V[g]], prevGrounds]}]]
+		                   medPositions = Flatten[Position[prevV,medValue]]
+		                   Complement[medPositions, prevGrounds][[1]]]*)
+		    (*Print[prevV];
+		    Print[ground];*)
+		    {ground, IsoperimetricVector[g, Substitutions->{ground}]}]
 
 
 
@@ -493,7 +534,7 @@ PartitionObj::usage =
 		vectors on the given direction*)
 		labelledVectors = SortBy[labelledVectors, -Dot[#[[1]],Normalize[dir]]&];
 		sortedVertices = Map[#[[2]]&,labelledVectors];
-		Print[sortedVertices];
+		(*Print[sortedVertices];*)
 		bestEta = Min[eta, Length[vectors]];
 		If[OptionValue[OptimizationOn],
 			(*Try putting at most eta vertices in partition 1,
@@ -553,7 +594,7 @@ PartitionObj::usage =
 		Switch[OptionValue[Method],
 			Melo, meloResult,
 			MeloProbe, 
-				With[{dir=Normalize[Total[Table[basisVectors[[i]]*iv[[i]],{i,1,Length[iv]}]]]},
+				With[{dir=Normalize[Total[basisVectors*meloResult]]},
 					VectorMaxOnDirection[vectors,eta,dir,OptimizationOn->OptionValue[OptimizationOn],
 					OptimizationObj->OptionValue[OptimizationObj]]]]		
 		]
@@ -579,13 +620,15 @@ PartitionObj::usage =
 		];	
 		{l[[maxIndex]], maxIndex} ]
 	
-	(* :DegreeMatrix:
+
+	DegreeMatrix[g_Graph] := System`DiagonalMatrix[DegreeList[g]]
+	(* :DegreeList:
 		Note: The weird map is because the ToAdjacencyMatrix procedure with
 		edge weights has non-existing edges entered as Infinity. This replaces
 		the Infinity entries with zero. *)
-	DegreeMatrix[g_Graph] := System`DiagonalMatrix[Apply[Plus, 
-					Map[If[#==Infinity,0,#]&,WeightedAdjacencyMatrix[g], {2}]]]
-	
+	DegreeList[g_Graph] := Apply[Plus, 
+					Map[If[#==Infinity,0,#]&,WeightedAdjacencyMatrix[g], {2}]]
+		
 	LaplacianMatrix[g_Graph] := (DegreeMatrix[g] - 
 				Map[If[#==Infinity,0,#]&,WeightedAdjacencyMatrix[g], {2}])
 
